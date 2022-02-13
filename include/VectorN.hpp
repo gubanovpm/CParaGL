@@ -55,13 +55,17 @@ public:
 	using MyVectorNBuf<DataT>::coord_;
 	using MyVectorNBuf<DataT>::size_ ;
 	VectorN (const std::initializer_list<DataT> &data = {}) :
-		MyVectorNBuf<DataT>((data.size() == Dimension) ? Dimension : 0 ) {
+		MyVectorNBuf<DataT>(Dimension) {
 			size_ = 0;
 			auto element = data.begin();
-			while (size_ < data.size()) {
+			while (size_ < data.size() && size_ < Dimension) {
 				construct<DataT> (coord_ + size_, *element);
 				++size_;
 				++element;
+			}
+			while (size_ < Dimension) {
+				construct<DataT> (coord_ + size_, DataT{});
+				++size_;
 			}
 		}
 	VectorN (const VectorN &other) :
@@ -73,7 +77,7 @@ public:
 			}
 		}
 	VectorN &operator=(const VectorN &other) {
-		for (int i = 0; i < other.size_; ++i) coord_[i] = other.coord_[i];
+		for (size_t i = 0; i < other.size_; ++i) coord_[i] = other.coord_[i];
 	}
 	virtual ~VectorN() {}
 //===================================================================================================
@@ -88,7 +92,7 @@ public:
 	}
 //===================================================================================================
 	VectorN &operator+=(const VectorN &other) noexcept {
-		for (int i = 0 ; i < size_ ; ++i) coord_[i] += other.coord_[i];
+		for (size_t i = 0 ; i < size_ ; ++i) coord_[i] += other.coord_[i];
 		return *this;
 	}
 //===================================================================================================
@@ -99,7 +103,7 @@ public:
 //===================================================================================================
 	DataT operator*=(const VectorN &other) noexcept {
 		DataT result = {};
-		for (int i = 0; i < size_; ++i) result += (coord_[i] * other.coord_[i]);
+		for (size_t i = 0; i < size_; ++i) result += (coord_[i] * other.coord_[i]);
 		return result;
 	}
 //===================================================================================================
