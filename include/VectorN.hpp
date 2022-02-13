@@ -119,8 +119,8 @@ public:
 	}
 //===================================================================================================
 	VectorN &operator^=(const VectorN &other) noexcept {
-		if (size_       != 3) { std::cout << "Wrong Dimension!" << std::endl; }
-		if (other.size_ != 3) { std::cout << "Wrong Dimension!" << std::endl; }
+		if (size_       != 3) { std::cout << "Wrong Dimension!" << std::endl; return *this;}
+		if (other.size_ != 3) { std::cout << "Wrong Dimension!" << std::endl; return *this;}
 		DataT temp[3] = {coord_[1] * other.coord_[2] - other.coord_[1] * coord_[2], 
                          coord_[2] * other.coord_[0] - other.coord_[2] * coord_[0], 
                          coord_[0] * other.coord_[1] - other.coord_[0] * coord_[1]} ;
