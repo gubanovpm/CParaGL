@@ -1,4 +1,4 @@
-#include "../include/Vector3.hpp"
+#include "../include/VectorN.hpp"
 
 int main() {
 	

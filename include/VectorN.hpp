@@ -16,9 +16,7 @@ template <typename DataT>
 void destroy (DataT *pointer) noexcept { pointer->~DataT(); }
 //===================================================================================================
 template <typename ForwardIt>
-void destroy (ForwardIt begin, ForwardIt end) noexcept {
-	while (begin++ != end) destroy (&*begin);
-}
+void destroy (ForwardIt begin, ForwardIt end) noexcept { while (begin++ != end) destroy (&*begin); }
 //===================================================================================================
 template <typename DataT>
 struct MyVectorNBuf {
@@ -45,7 +43,7 @@ protected:
 
 		return *this;
 	}
-	~MyVectorNBuf () {
+	virtual ~MyVectorNBuf () {
 		destroy (coord_, coord_ + size_);
 		::operator delete (coord_);
 	}
@@ -53,57 +51,72 @@ protected:
 //===================================================================================================
 template <typename DataT, size_t Dimension = 3>
 struct VectorN : private MyVectorNBuf<DataT> {
-private:
+public:
 	using MyVectorNBuf<DataT>::coord_;
 	using MyVectorNBuf<DataT>::size_ ;
-public:
 	VectorN (const std::initializer_list<DataT> &data = {}) :
 		MyVectorNBuf<DataT>((data.size() == Dimension) ? Dimension : 0 ) {
-			if (data.size() == Dimension)
-				for (size_t i = 0; i < Dimension ; ++i) coord_[i] = data[i];
-			else std::cout << "Wrong initializer_list size" << std::endl ;
+			size_ = 0;
+			auto element = data.begin();
+			while (size_ < data.size()) {
+				construct<DataT> (coord_ + size_, *element);
+				++size_;
+				++element;
+			}
 		}
 	VectorN (const VectorN &other) :
-		MyVectorNBuf<DataT>((other.size_() == Dimension) ? Dimension : 0 ) {
-			for (size_t i = 0; i < Dimension; ++i) coord_[i] = other.coord_[i];
+		MyVectorNBuf<DataT>(other.size_) {
+			size_ = 0;
+			while (size_ < other.size_) {
+				construct<DataT> (coord_ + size_, other.coord_[size_]);
+				++size_;
+			}
 		}
 	VectorN &operator=(const VectorN &other) {
-		for (int i = 0; i < Dimension; ++i) coord_[i] = other.coord_[i];
+		for (int i = 0; i < other.size_; ++i) coord_[i] = other.coord_[i];
 	}
 	virtual ~VectorN() {}
 //===================================================================================================
-	DataT get_coord(size_t num) const noexcept {
-		//if (num > Dimension) throw std::invalid_argument("Wrong Vector coord number\n");
+	DataT &operator[] (const size_t num) {
+		if (num >= Dimension) throw std::invalid_argument{"Out of range VectorN!\n"};
 		return coord_[num];
 	}
 //===================================================================================================
-	void  set_coord(size_t num, DataT val) noexcept {
-		//if (num > Dimension) throw std::invalid_argument("Wrong Vector coord number\n");
-		coord_[num] = val;
+	const DataT &operator[] (const size_t num) const{
+		if (num >= Dimension) throw std::invalid_argument{"Out of range VectorN!\n"};
+		return coord_[num];
 	}
 //===================================================================================================
 	VectorN &operator+=(const VectorN &other) noexcept {
-		for (int i = 0 ; i < 3 ; ++i) coord_[i] += other.coord_[i];
+		for (int i = 0 ; i < size_ ; ++i) coord_[i] += other.coord_[i];
 		return *this;
 	}
 //===================================================================================================
 	VectorN &operator*=(float lambda) noexcept {
-		for (int i = 0; i < 3; ++i) coord_[i] *= lambda;
+		for (size_t i = 0; i < size_; ++i) coord_[i] *= lambda;
 		return *this;
 	}
 //===================================================================================================
+	DataT operator*=(const VectorN &other) noexcept {
+		DataT result = {};
+		for (int i = 0; i < size_; ++i) result += (coord_[i] * other.coord_[i]);
+		return result;
+	}
+//===================================================================================================
 	VectorN operator-() const noexcept {
-		VectorN<DataT> result;
-		for (int i = 0; i < 3; ++i) result.coord_[i] = -coord_[i];
+		VectorN<DataT, Dimension> result;
+		for (size_t i = 0; i < size_; ++i) result.coord_[i] = -coord_[i];
 		return result;
 	}
 //===================================================================================================
 	VectorN &operator-=(const VectorN &other) noexcept {
-		for (int i = 0; i < 3; ++i) coord_[i] -= other.coord_[i];
+		for (size_t i = 0; i < size_; ++i) coord_[i] -= other.coord_[i];
 		return *this;
 	}
 //===================================================================================================
 	VectorN &operator^=(const VectorN &other) noexcept {
+		if (size_       != 3) { std::cout << "Wrong Dimension!" << std::endl; }
+		if (other.size_ != 3) { std::cout << "Wrong Dimension!" << std::endl; }
 		DataT temp[3] = {coord_[1] * other.coord_[2] - other.coord_[1] * coord_[2], 
                          coord_[2] * other.coord_[0] - other.coord_[2] * coord_[0], 
                          coord_[0] * other.coord_[1] - other.coord_[0] * coord_[1]} ;
@@ -112,13 +125,13 @@ public:
 	}
 //===================================================================================================
 	VectorN &operator/=(const float lambda) noexcept {
-		for (int i = 0; i < 3; ++i) coord_[i] /= lambda;
+		for (size_t i = 0; i < size_; ++i) coord_[i] /= lambda;
 		return *this;
 	}
 //===================================================================================================
 	bool lessLengthThan(const VectorN &other) const noexcept {
 		DataT length = {}, otherLength = {}; 
-		for (int i = 0; i < 3; ++i) {
+		for (size_t i = 0; i < size_; ++i) {
 			length      += coord_[i]       * coord_[i]       ;
 			otherLength += other.coord_[i] * other.coord_[i] ; 
 		}
@@ -126,84 +139,91 @@ public:
 	}
 };
 //===================================================================================================
-template <typename DataT>
-VectorN<DataT> operator+(const VectorN<DataT> &first, const VectorN<DataT> &second) noexcept {
-	VectorN<DataT> result = first;
-	return result += second;
-}
+template <typename DataT, size_t Dimension = 3>
+VectorN<DataT, Dimension> operator+(const VectorN<DataT, Dimension> &first, 
+	const VectorN<DataT, Dimension> &second) noexcept {
+		VectorN<DataT> result = first;
+		return result += second;
+	}
 //===================================================================================================
-template <typename DataT>
-VectorN<DataT> operator-(const VectorN<DataT> &first, const VectorN<DataT> &second) noexcept {
-	VectorN<DataT> result = first;
-	return result -= second;
-}
+template <typename DataT, size_t Dimension = 3>
+VectorN<DataT, Dimension> operator-(const VectorN<DataT, Dimension> &first, 
+	const VectorN<DataT, Dimension> &second) noexcept {
+		VectorN<DataT, Dimension> result = first;
+		return result -= second;
+	}
 //===================================================================================================
-template <typename DataT>
-VectorN<DataT> operator*(const VectorN<DataT> &vector, float lambda) noexcept {
-	VectorN<DataT> result = vector;
-	return result *= lambda;
-}
+template <typename DataT, size_t Dimension = 3>
+VectorN<DataT, Dimension> operator*(const VectorN<DataT, Dimension> &vector, 
+	float lambda) noexcept {
+		VectorN<DataT, Dimension> result = vector;
+		return result *= lambda;
+	}
 //===================================================================================================
-template <typename DataT>
-VectorN<DataT> operator*(float lambda, const VectorN<DataT> &vector) noexcept {
+template <typename DataT, size_t Dimension = 3>
+VectorN<DataT, Dimension> operator*(float lambda, const VectorN<DataT, Dimension> &vector) noexcept {
 	return vector * lambda;
 }
 //===================================================================================================
-template <typename DataT>
-DataT operator*(const VectorN<DataT> &first, const VectorN<DataT> &second) noexcept {
-	DataT res = {};
-	for (int i = 0; i < 3; ++i) 
-		res += (first.get_coord(i) * second.get_coord(i));
-	return res;
-}
+template <typename DataT, size_t Dimension = 3>
+DataT operator*(const VectorN<DataT, Dimension> &first, 
+	const VectorN<DataT, Dimension> &second) noexcept {
+		return first * second;
+	}
 //===================================================================================================
-template <typename DataT>
-VectorN<DataT> operator^(const VectorN<DataT> &first, const VectorN<DataT> &second) noexcept {
-	VectorN<DataT> result = first;
-	return (result ^= second);
-}
+template <typename DataT, size_t Dimension = 3>
+VectorN<DataT, Dimension> operator^(const VectorN<DataT, Dimension> &first, 
+	const VectorN<DataT, Dimension> &second) noexcept {
+		VectorN<DataT, Dimension> result = first;
+		return (result ^= second);
+	}
 //===================================================================================================
-template <typename DataT>
-VectorN<DataT> operator/(const VectorN<DataT> &vector, float lambda) noexcept {
-	VectorN<DataT> result = vector;
+template <typename DataT, size_t Dimension = 3>
+VectorN<DataT, Dimension> operator/(const VectorN<DataT, Dimension> &vector, float lambda) noexcept {
+	VectorN<DataT, Dimension> result = vector;
 	return (result /= lambda);
 }
 //===================================================================================================
-template <typename DataT>
-bool operator==(const VectorN<DataT> &left, const VectorN<DataT> &right) noexcept {
-	for (int i = 0 ; i < 3; ++i) 
-		if (std::abs(left.get_coord(i) - right.get_coord(i)) > (__MY_EPSILON__) ) return false;
-	return true;
-}
+template <typename DataT, size_t Dimension = 3>
+bool operator==(const VectorN<DataT, Dimension> &left, 
+	const VectorN<DataT, Dimension> &right) noexcept {
+		for (size_t i = 0 ; i < Dimension; ++i) 
+			if (std::abs(left[i] - right[i]) > (__MY_EPSILON__) ) return false;
+		return true;
+	}
 //===================================================================================================
-template <typename DataT>
-bool operator!=(const VectorN<DataT> &left, const VectorN<DataT> &right) noexcept {
-	return !(left == right);
-}
+template <typename DataT, size_t Dimension = 3>
+bool operator!=(const VectorN<DataT, Dimension> &left, 
+	const VectorN<DataT, Dimension> &right) noexcept {
+		return !(left == right);
+	}
 //===================================================================================================
-template <typename DataT>
-std::ostream &operator<<(std::ostream &stream, const VectorN<DataT> &vector) {
-	stream << "{ " << vector.get_coord(0) << " ; " 
-	               << vector.get_coord(1) << " ; " 
-				   << vector.get_coord(2) << " }" ;
+template <typename DataT, size_t Dimension = 3>
+std::ostream &operator<<(std::ostream &stream, const VectorN<DataT, Dimension> &vector) {
+	stream << "{" ;
+	for (size_t i = 0; i < Dimension - 1; ++i) stream << vector[i] << " ; " ;
+	if (Dimension - 1 >= 0) stream << vector[Dimension - 1];
+	stream << "}" ; 
 	return stream;
 }
 //===================================================================================================
-template <typename DataT>
-std::istream &operator>>(std::istream &stream, VectorN<DataT> &vector) {
-	DataT temp[3];
-	stream >> temp[0] >> temp[1] >> temp[2];
-	for (int i = 0; i < 3; ++i) vector.set_coord(i, temp[i]);
+template <typename DataT, size_t Dimension = 3>
+std::istream &operator>>(std::istream &stream, VectorN<DataT, Dimension> &vector) {
+	DataT temporary;
+	for (size_t i = 0; i < Dimension; ++i) { stream >> temporary; vector[i] = temporary; }
 	return stream;
 }
 //===================================================================================================
-template <typename DataT>
-DataT square_distance(const VectorN<DataT> &fpoint, const VectorN<DataT> &spoint) noexcept {
-	DataT res = {};
-	for (int  i = 0; i < 3; ++i)
-		res += ((fpoint.get_coord(i) - spoint.get_coord(i)) * (fpoint.get_coord(i) - spoint.get_coord(i)));
-	return res;
-}
+template <typename DataT, size_t Dimension = 3>
+DataT square_distance(const VectorN<DataT, Dimension> &fpoint, 
+	const VectorN<DataT, Dimension> &spoint) noexcept {
+		DataT res = {};
+		for (size_t i = 0; i < Dimension; ++i)
+			res += ((fpoint[i] - spoint[i]) * (fpoint[i] - spoint[i])) ;
+		return res;
+	}
+//===================================================================================================
+
 
 }
 
